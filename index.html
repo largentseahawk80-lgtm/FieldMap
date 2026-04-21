@@ -74,6 +74,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:var(--white);padding:12px 24px;border-radius:30px;font-weight:700;font-size:.95rem;z-index:300;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
 .del-btn{background:none;border:none;color:var(--red);font-size:1.2rem;cursor:pointer;padding:4px 8px}
+.edit-btn{background:none;border:none;color:var(--blue-mid);font-size:.85rem;font-weight:700;cursor:pointer;padding:4px 8px}
+.log-actions{display:flex;gap:4px;align-items:center}
+.edit-field{width:100%;padding:12px;border:2.5px solid var(--gray-200);border-radius:var(--radius);font-size:1rem;font-family:monospace;margin-bottom:10px}
+.edit-label{font-size:.8rem;font-weight:700;color:var(--gray-400);text-transform:uppercase;margin-bottom:4px}
 .done-toggle{background:none;border:2px solid var(--gray-400);color:var(--gray-600);font-size:.8rem;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;flex-shrink:0}
 .done-toggle.is-done{border-color:var(--green);color:var(--green)}
 </style>
@@ -135,6 +139,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <button class="btn btn-outline btn-sm" id="btnExportXLS" style="flex:1">⬇ XLS</button>
   </div>
   <div id="logList"><div class="empty">No placements yet</div></div>
+  <button class="btn btn-red btn-sm" id="btnDeleteAll" style="margin-top:16px;display:none">🗑 DELETE ALL PLACEMENTS</button>
 </div>
 
 <div class="screen" id="screen-inv">
@@ -164,6 +169,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="modal-actions">
     <button class="btn btn-outline btn-sm" onclick="closeEditInv()">Cancel</button>
     <button class="btn btn-blue btn-sm" onclick="saveEditInv()">Save</button>
+  </div>
+</div></div>
+
+<div class="modal-overlay" id="editModal"><div class="modal">
+  <h2>✏ Edit Placement</h2>
+  <div class="edit-label">Panel ID</div>
+  <input class="edit-field" id="editPanelId" placeholder="e.g. B2a">
+  <div class="edit-label">Roll ID</div>
+  <input class="edit-field" id="editRollId" placeholder="e.g. 3100000001">
+  <div class="edit-label">Flag / Note</div>
+  <input class="edit-field" id="editFlag" placeholder="Leave blank for no flag">
+  <div class="modal-actions">
+    <button class="btn btn-outline btn-sm" onclick="closeEditModal()">Cancel</button>
+    <button class="btn btn-blue btn-sm" onclick="saveEdit()">Save</button>
   </div>
 </div></div>
 
@@ -295,13 +314,17 @@ $('photoInput').addEventListener('change',async function(e){
   };rd.readAsDataURL(f);e.target.value='';
 });
 
+var editingPanelId=null;
+
 function renderLog(){
   var el=$('logList');
+  $('btnDeleteAll').style.display=placements.length?'flex':'none';
   if(!placements.length){el.innerHTML='<div class="empty">No placements yet</div>';return}
   el.innerHTML=placements.slice().reverse().map(function(p){
     return '<div class="log-entry '+(p.flag?'flagged':'')+'">'+
       '<div class="log-header"><span class="log-panel">'+esc(p.panelId)+'</span>'+
-      '<button class="del-btn" data-p="'+esc(p.panelId)+'">✕</button></div>'+
+      '<div class="log-actions"><button class="edit-btn" data-p="'+esc(p.panelId)+'">✏ Edit</button>'+
+      '<button class="del-btn" data-p="'+esc(p.panelId)+'">✕</button></div></div>'+
       '<div class="log-roll">'+esc(p.rollId)+' — '+p.weight+' lbs</div>'+
       '<div class="log-meta">'+esc(p.dateDisplay)+' '+esc(p.timeDisplay)+'<br>GPS: '+(p.lat?p.lat.toFixed(6)+', '+p.lng.toFixed(6):'N/A')+(p.photoDataUrl?' — 📷':'')+'</div>'+
       (p.flag?'<div class="log-flag">⚠ '+esc(p.flag)+'</div>':'')+
@@ -314,7 +337,59 @@ function renderLog(){
     if(m)await gDel('placements',m.id);
     updBadge();renderLog();renderRolls();renderInv();toast(pp+' deleted');
   })});
+  el.querySelectorAll('.edit-btn').forEach(function(b){b.addEventListener('click',function(){
+    var pp=b.dataset.p;
+    var entry=placements.find(function(x){return x.panelId===pp});
+    if(!entry)return;
+    editingPanelId=pp;
+    $('editPanelId').value=entry.panelId;
+    $('editRollId').value=entry.rollId;
+    $('editFlag').value=entry.flag||'';
+    $('editModal').classList.add('open');
+  })});
 }
+
+function closeEditModal(){$('editModal').classList.remove('open');editingPanelId=null}
+
+async function saveEdit(){
+  var entry=placements.find(function(x){return x.panelId===editingPanelId});
+  if(!entry){closeEditModal();return}
+  var newPid=$('editPanelId').value.trim();
+  var newRoll=$('editRollId').value.trim();
+  var newFlag=$('editFlag').value.trim();
+  // Update in DB — need to delete old and put new since panelId changed
+  var all=await gAll('placements'),m=all.find(function(d){return d.panelId===editingPanelId});
+  if(m){
+    m.panelId=newPid||m.panelId;
+    m.rollId=newRoll||m.rollId;
+    m.flag=newFlag||null;
+    // Update weight from inventory if roll changed
+    var inv=inventory.find(function(r){return r.rollId===m.rollId});
+    if(inv)m.weight=inv.weight;
+    await gPut('placements',m);
+  }
+  entry.panelId=newPid||entry.panelId;
+  entry.rollId=newRoll||entry.rollId;
+  entry.flag=newFlag||null;
+  if(m)entry.weight=m.weight;
+  closeEditModal();
+  renderLog();renderRolls();renderInv();updBadge();
+  toast(entry.panelId+' updated ✓');
+}
+
+$('btnDeleteAll').addEventListener('click',async function(){
+  if(!confirm('Delete ALL '+placements.length+' placements?'))return;
+  if(!confirm('Are you sure? This cannot be undone.'))return;
+  await gClr('placements');
+  await gClr('photos');
+  placements=[];
+  P.num=1;P.sub='';
+  await gPut('settings',{key:'ps',pre:P.pre,num:1,sub:'',lastRoll:null});
+  lastRollId=null;
+  // Reset all rolls to not-done
+  for(var ri=0;ri<inventory.length;ri++){inventory[ri].done=false;await gPut('inventory',inventory[ri])}
+  updBadge();renderLog();renderRolls();renderInv();toast('All placements deleted');
+});
 
 function renderInv(){
   var el=$('invList');
