@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1a3a5c">
+<title>FieldMap — Panel Tracker</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue-dark:#1a3a5c;--blue-mid:#2563eb;--blue-pale:#dbeafe;
+  --red:#dc2626;--red-light:#fecaca;--white:#ffffff;
+  --gray-50:#f8fafc;--gray-100:#f1f5f9;--gray-200:#e2e8f0;
+  --gray-400:#94a3b8;--gray-600:#475569;--gray-900:#0f172a;
+  --green:#16a34a;--green-light:#dcfce7;
+  --amber:#d97706;--amber-light:#fef3c7;
+  --radius:12px;--shadow:0 2px 8px rgba(0,0,0,0.12);
+}
+html{font-size:18px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100dvh;-webkit-tap-highlight-color:transparent;user-select:none;overflow-x:hidden}
+.header{background:var(--blue-dark);color:var(--white);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header h1{font-size:1.3rem;font-weight:800;letter-spacing:.5px}
+.header .badge{background:var(--white);color:var(--blue-dark);font-weight:800;font-size:.85rem;padding:4px 12px;border-radius:20px}
+.gps-bar{display:flex;align-items:center;gap:8px;padding:10px 20px;background:var(--green-light);font-size:.85rem;font-weight:600;color:var(--green)}
+.gps-bar.no-gps{background:var(--red-light);color:var(--red)}
+.tabs{display:flex;background:var(--white);border-bottom:3px solid var(--gray-200);position:sticky;top:60px;z-index:99}
+.tab{flex:1;padding:14px 8px;text-align:center;font-weight:700;font-size:.95rem;color:var(--gray-400);border-bottom:3px solid transparent;margin-bottom:-3px;cursor:pointer}
+.tab.active{color:var(--blue-mid);border-bottom-color:var(--blue-mid)}
+.screen{display:none;padding:16px;padding-bottom:120px}
+.screen.active{display:block}
+.card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+.card-title{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);margin-bottom:12px}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:18px 20px;border:none;border-radius:var(--radius);font-size:1.1rem;font-weight:700;cursor:pointer;text-align:center}
+.btn:active{transform:scale(.97)}
+.btn-blue{background:var(--blue-mid);color:var(--white);box-shadow:0 4px 12px rgba(37,99,235,.3)}
+.btn-red{background:var(--red);color:var(--white)}
+.btn-outline{background:var(--white);color:var(--blue-mid);border:2.5px solid var(--blue-mid)}
+.btn-amber{background:var(--amber);color:var(--white)}
+.btn-sm{padding:12px 16px;font-size:.95rem}
+.btn-xs{padding:10px 12px;font-size:.85rem}
+.roll-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.roll-item{display:flex;align-items:center;justify-content:space-between;padding:16px;background:var(--gray-50);border:2.5px solid var(--gray-200);border-radius:var(--radius);font-weight:700;font-size:1rem;cursor:pointer}
+.roll-item.done{opacity:.35}
+.roll-item.in-use{background:var(--blue-pale);border-color:var(--blue-mid);box-shadow:0 0 0 3px rgba(37,99,235,.2)}
+.roll-id{font-family:monospace;font-size:1.05rem}
+.roll-sub{font-size:.85rem;color:var(--gray-600)}
+.status-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.dot-avail{background:var(--green)}.dot-inuse{background:var(--blue-mid)}.dot-done{background:var(--gray-400)}
+.panel-confirm{background:var(--blue-pale);border:3px solid var(--blue-mid);border-radius:var(--radius);padding:24px;margin-bottom:16px;text-align:center}
+.panel-id-display{font-size:2.8rem;font-weight:900;color:var(--blue-dark);letter-spacing:1px;font-family:monospace}
+.gps-stamp{font-family:monospace;font-size:.85rem;color:var(--gray-600);margin-top:8px}
+.pid-edit-row{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap}
+.pid-edit-row button{padding:10px 18px;border-radius:10px;border:2.5px solid var(--blue-mid);background:var(--white);color:var(--blue-mid);font-weight:800;font-size:1rem;cursor:pointer;min-width:48px}
+.pid-edit-row button.active{background:var(--blue-mid);color:var(--white)}
+.pid-edit-row input{width:60px;padding:10px;border-radius:10px;border:2.5px solid var(--gray-200);font-size:1.1rem;font-weight:700;text-align:center;font-family:monospace}
+.pid-prefix-input{width:55px !important;text-transform:uppercase}
+.log-entry{padding:14px;border-left:4px solid var(--blue-mid);background:var(--white);border-radius:0 var(--radius) var(--radius) 0;margin-bottom:10px;box-shadow:var(--shadow)}
+.log-entry.flagged{border-left-color:var(--red);background:var(--red-light)}
+.log-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.log-panel{font-weight:800;font-size:1.1rem;font-family:monospace}
+.log-roll{font-family:monospace;font-size:.85rem;color:var(--gray-600)}
+.log-meta{font-size:.8rem;color:var(--gray-600);line-height:1.5}
+.log-flag{display:inline-block;background:var(--red);color:var(--white);font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:4px;margin-top:4px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--white);border-radius:20px 20px 0 0;padding:24px 24px 40px;width:100%;max-width:500px;max-height:70dvh;overflow-y:auto}
+.modal h2{font-size:1.2rem;font-weight:800;margin-bottom:16px}
+.modal textarea{width:100%;min-height:100px;border:2.5px solid var(--gray-200);border-radius:var(--radius);padding:14px;font-size:1rem;font-family:inherit;resize:vertical}
+.modal-actions{display:flex;gap:10px;margin-top:16px}
+.modal-actions .btn{flex:1}
+.empty{text-align:center;padding:40px 20px;color:var(--gray-400);font-size:1rem}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:var(--white);padding:12px 24px;border-radius:30px;font-weight:700;font-size:.95rem;z-index:300;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+.del-btn{background:none;border:none;color:var(--red);font-size:1.2rem;cursor:pointer;padding:4px 8px}
+.done-toggle{background:none;border:2px solid var(--gray-400);color:var(--gray-600);font-size:.8rem;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;flex-shrink:0}
+.done-toggle.is-done{border-color:var(--green);color:var(--green)}
+</style>
+</head>
+<body>
+<div class="header"><h1>FIELDMAP</h1><div class="badge" id="countBadge">0 Panels</div></div>
+<div class="gps-bar no-gps" id="gpsBar">◉ Acquiring GPS…</div>
+<div class="tabs">
+  <div class="tab active" data-tab="place">PLACE</div>
+  <div class="tab" data-tab="log">LOG</div>
+  <div class="tab" data-tab="inv">ROLLS</div>
+</div>
+
+<div class="screen active" id="screen-place">
+  <div id="step1"><div class="card"><div class="card-title">Step 1 — Select Roll</div><div class="roll-grid" id="rollSelect"></div></div></div>
+  <div id="step2" style="display:none">
+    <div class="panel-confirm">
+      <div class="card-title">PLACING AS</div>
+      <div class="panel-id-display" id="panelIdShow">B1</div>
+      <div class="pid-edit-row">
+        <input class="pid-prefix-input" id="pidPrefix" value="B" maxlength="3">
+        <input id="pidNum" type="number" min="1" value="1" inputmode="numeric">
+        <button id="pidSubNone" class="active" onclick="setSub('')">—</button>
+        <button id="pidSubA" onclick="setSub('a')">a</button>
+        <button id="pidSubB" onclick="setSub('b')">b</button>
+        <button id="pidSubC" onclick="setSub('c')">c</button>
+        <button id="pidSubD" onclick="setSub('d')">d</button>
+      </div>
+      <div style="margin-top:12px;font-weight:700" id="selectedRollShow">Roll: —</div>
+      <div style="font-size:.9rem;color:var(--gray-600)" id="materialShow"></div>
+      <div class="gps-stamp" id="gpsStamp">GPS: acquiring…</div>
+    </div>
+    <button class="btn btn-blue" id="btnConfirm" style="margin-bottom:12px">✓ CONFIRM PLACEMENT</button>
+    <button class="btn btn-red btn-sm" id="btnFlag" style="margin-bottom:12px">⚠ FLAG ISSUE</button>
+    <div style="display:flex;gap:10px;margin-bottom:12px">
+      <button class="btn btn-outline btn-sm" id="btnSwitchRoll" style="flex:1">↔ SWITCH ROLL</button>
+      <button class="btn btn-amber btn-sm" id="btnRollDone" style="flex:1">✕ ROLL DONE</button>
+    </div>
+  </div>
+  <div id="step3" style="display:none">
+    <div class="card" style="text-align:center">
+      <div style="font-size:2.5rem;margin-bottom:10px">✓</div>
+      <div style="font-weight:800;font-size:1.3rem;margin-bottom:4px;font-family:monospace" id="s3Panel">B1</div>
+      <div style="color:var(--gray-600);margin-bottom:20px" id="s3Roll">Placed</div>
+      <input type="file" accept="image/*" capture="environment" id="photoInput" style="display:none">
+      <button class="btn btn-outline btn-sm" id="btnPhoto" style="margin-bottom:10px">📷 Add Photo</button>
+      <div style="font-size:.8rem;color:var(--gray-400);margin-bottom:20px">Optional</div>
+      <div class="card-title" style="margin-top:8px">What's Next?</div>
+      <button class="btn btn-blue" id="btnNextMain" style="margin-bottom:10px">NEXT PANEL →</button>
+      <button class="btn btn-outline btn-sm" id="btnSubPanel" style="margin-bottom:10px">+ SUB-PANEL (a, b, c…)</button>
+      <button class="btn btn-outline btn-xs" id="btnSwitchAfter">↔ Switch Roll First</button>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="screen-log">
+  <div style="display:flex;gap:10px;margin-bottom:16px">
+    <button class="btn btn-blue btn-sm" id="btnExport" style="flex:1">⬇ CSV</button>
+    <button class="btn btn-outline btn-sm" id="btnExportXLS" style="flex:1">⬇ XLS</button>
+  </div>
+  <div id="logList"><div class="empty">No placements yet</div></div>
+</div>
+
+<div class="screen" id="screen-inv">
+  <div class="card"><div class="card-title">Inventory</div><div class="roll-grid" id="invList"></div></div>
+  <button class="btn btn-outline btn-sm" id="btnEditInv" style="margin-top:8px">✏ Edit Inventory</button>
+</div>
+
+<div class="modal-overlay" id="flagModal"><div class="modal">
+  <h2>⚠ Flag Issue</h2>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+    <button class="btn btn-outline btn-sm" style="flex:none;width:auto;padding:10px 16px" onclick="setFlagType('Fishmouth')">Fishmouth</button>
+    <button class="btn btn-outline btn-sm" style="flex:none;width:auto;padding:10px 16px" onclick="setFlagType('Factory Defect')">Factory Defect</button>
+    <button class="btn btn-outline btn-sm" style="flex:none;width:auto;padding:10px 16px" onclick="setFlagType('Damage')">Damage</button>
+    <button class="btn btn-outline btn-sm" style="flex:none;width:auto;padding:10px 16px" onclick="setFlagType('Wrinkle')">Wrinkle</button>
+  </div>
+  <textarea id="flagNote" placeholder="Describe the issue…"></textarea>
+  <div class="modal-actions">
+    <button class="btn btn-outline btn-sm" onclick="closeFlagModal()">Cancel</button>
+    <button class="btn btn-red btn-sm" onclick="confirmFlag()">Flag + Place</button>
+  </div>
+</div></div>
+
+<div class="modal-overlay" id="editInvModal"><div class="modal">
+  <h2>Edit Inventory</h2>
+  <p style="font-size:.85rem;color:var(--gray-600);margin-bottom:12px">One roll per line: <strong>RollNumber, Weight</strong><br>Example: 3100000001, 1250</p>
+  <textarea id="invEditor" style="min-height:200px;font-family:monospace;font-size:.9rem"></textarea>
+  <div class="modal-actions">
+    <button class="btn btn-outline btn-sm" onclick="closeEditInv()">Cancel</button>
+    <button class="btn btn-blue btn-sm" onclick="saveEditInv()">Save</button>
+  </div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var DB='fieldmap4',db;
+function openDB(){return new Promise(function(res,rej){var r=indexedDB.open(DB,1);r.onupgradeneeded=function(e){var d=e.target.result;if(!d.objectStoreNames.contains('inventory'))d.createObjectStore('inventory',{keyPath:'rollId'});if(!d.objectStoreNames.contains('placements')){var s=d.createObjectStore('placements',{keyPath:'id',autoIncrement:true});s.createIndex('pid','panelId',{unique:false})}if(!d.objectStoreNames.contains('photos'))d.createObjectStore('photos',{keyPath:'panelId'});if(!d.objectStoreNames.contains('settings'))d.createObjectStore('settings',{keyPath:'key'})};r.onsuccess=function(e){db=e.target.result;res(db)};r.onerror=function(e){rej(e.target.error)}})}
+function tx(s,m){return db.transaction(s,m||'readonly').objectStore(s)}
+function gAll(s){return new Promise(function(r,j){var q=tx(s).getAll();q.onsuccess=function(){r(q.result)};q.onerror=function(){j(q.error)}})}
+function gPut(s,i){return new Promise(function(r,j){var q=tx(s,'readwrite').put(i);q.onsuccess=function(){r(q.result)};q.onerror=function(){j(q.error)}})}
+function gDel(s,k){return new Promise(function(r,j){var q=tx(s,'readwrite').delete(k);q.onsuccess=function(){r()};q.onerror=function(){j(q.error)}})}
+function gClr(s){return new Promise(function(r,j){var q=tx(s,'readwrite').clear();q.onsuccess=function(){r()};q.onerror=function(){j(q.error)}})}
+function gGet(s,k){return new Promise(function(r,j){var q=tx(s).get(k);q.onsuccess=function(){r(q.result||null)};q.onerror=function(){j(q.error)}})}
+
+var DROLLS=[];for(var i=1;i<=25;i++)DROLLS.push({rollId:'31'+String(i).padStart(8,'0'),weight:1200+Math.floor(Math.random()*300),material:'60 mil HDPE Textured',done:false});
+
+var inventory=[],placements=[];
+var gps={lat:null,lng:null,acc:null};
+var selRoll=null,lastRollId=null;
+var P={pre:'B',num:1,sub:''};
+
+function pid(){return P.pre+P.num+(P.sub||'')}
+function rollCount(rid){return placements.filter(function(p){return p.rollId===rid}).length}
+function $(id){return document.getElementById(id)}
+
+function initGPS(){
+  if(!navigator.geolocation){$('gpsBar').textContent='✕ GPS not available';return}
+  navigator.geolocation.watchPosition(function(p){
+    gps={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy};
+    var b=$('gpsBar');b.className='gps-bar';
+    b.textContent='◉ GPS: '+gps.lat.toFixed(6)+', '+gps.lng.toFixed(6)+' (±'+Math.round(gps.acc)+'m)';
+    stampGPS();
+  },function(){var b=$('gpsBar');b.className='gps-bar no-gps';b.textContent='◉ GPS error — tap to retry';b.onclick=initGPS},
+  {enableHighAccuracy:true,maximumAge:5000});
+}
+function stampGPS(){if(gps.lat)$('gpsStamp').textContent='GPS: '+gps.lat.toFixed(6)+', '+gps.lng.toFixed(6)+' (±'+Math.round(gps.acc)+'m)'}
+
+document.querySelectorAll('.tab').forEach(function(t){t.addEventListener('click',function(){
+  document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active')});
+  document.querySelectorAll('.screen').forEach(function(x){x.classList.remove('active')});
+  t.classList.add('active');$('screen-'+t.dataset.tab).classList.add('active');
+  if(t.dataset.tab==='log')renderLog();if(t.dataset.tab==='inv')renderInv();
+})});
+
+function updPID(){
+  $('panelIdShow').textContent=pid();
+  $('pidPrefix').value=P.pre;$('pidNum').value=P.num;
+  ['pidSubNone','pidSubA','pidSubB','pidSubC','pidSubD'].forEach(function(id){$(id).classList.remove('active')});
+  var map={'':'pidSubNone',a:'pidSubA',b:'pidSubB',c:'pidSubC',d:'pidSubD'};
+  if(map[P.sub])$(map[P.sub]).classList.add('active');
+}
+function setSub(s){P.sub=s;updPID()}
+$('pidPrefix').addEventListener('input',function(e){P.pre=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3)||'B';updPID()});
+$('pidNum').addEventListener('input',function(e){P.num=Math.max(1,parseInt(e.target.value)||1);updPID()});
+
+function renderRolls(){
+  var el=$('rollSelect'),av=inventory.filter(function(r){return !r.done});
+  if(!av.length){el.innerHTML='<div class="empty">All rolls done!</div>';return}
+  el.innerHTML=av.map(function(r){
+    var c=rollCount(r.rollId),last=r.rollId===lastRollId;
+    return '<div class="roll-item '+(last?'in-use':'')+'" data-r="'+r.rollId+'">'+
+      '<div><div class="roll-id">'+r.rollId+'</div>'+
+      '<div class="roll-sub">'+r.weight+' lbs'+(c?' — '+c+' panel'+(c>1?'s':'')+' cut':'')+'</div></div>'+
+      '<div class="status-dot '+(last?'dot-inuse':'dot-avail')+'"></div></div>';
+  }).join('');
+  el.querySelectorAll('.roll-item').forEach(function(i){i.addEventListener('click',function(){pickRoll(i.dataset.r)})});
+}
+function pickRoll(rid){selRoll=inventory.find(function(r){return r.rollId===rid});if(!selRoll)return;goStep2()}
+function goStep2(){
+  $('step1').style.display='none';$('step2').style.display='block';$('step3').style.display='none';
+  var c=rollCount(selRoll.rollId);
+  $('selectedRollShow').textContent='Roll: '+selRoll.rollId+' ('+selRoll.weight+' lbs)'+(c?' — '+c+' cut':'');
+  $('materialShow').textContent=selRoll.material;
+  updPID();stampGPS();
+}
+
+$('btnConfirm').addEventListener('click',function(){doPlace(null)});
+async function doPlace(flag){
+  var id=pid();
+  if(placements.some(function(p){return p.panelId===id})){if(!confirm(id+' already exists. Place anyway?'))return}
+  var now=new Date();
+  var e={panelId:id,prefix:P.pre,num:P.num,sub:P.sub,
+    rollId:selRoll.rollId,weight:selRoll.weight,material:selRoll.material,
+    lat:gps.lat,lng:gps.lng,gpsAcc:gps.acc,
+    timestamp:now.toISOString(),timeDisplay:now.toLocaleTimeString(),dateDisplay:now.toLocaleDateString(),
+    flag:flag||null,photoDataUrl:null};
+  await gPut('placements',e);placements.push(e);
+  lastRollId=selRoll.rollId;
+  await gPut('settings',{key:'ps',pre:P.pre,num:P.num,sub:P.sub,lastRoll:lastRollId});
+  updBadge();toast(id+' logged ✓');
+  $('step2').style.display='none';$('step3').style.display='block';
+  $('s3Panel').textContent=id;$('s3Roll').textContent='Roll '+selRoll.rollId;
+}
+
+$('btnNextMain').addEventListener('click',function(){P.num++;P.sub='';goStep2()});
+$('btnSubPanel').addEventListener('click',function(){
+  if(!P.sub)P.sub='a';else P.sub=String.fromCharCode(P.sub.charCodeAt(0)+1);
+  goStep2();
+});
+$('btnSwitchAfter').addEventListener('click',function(){
+  P.num++;P.sub='';selRoll=null;
+  $('step3').style.display='none';$('step1').style.display='block';renderRolls();
+});
+$('btnSwitchRoll').addEventListener('click',function(){
+  selRoll=null;$('step2').style.display='none';$('step1').style.display='block';renderRolls();
+});
+$('btnRollDone').addEventListener('click',async function(){
+  if(!selRoll||!confirm('Mark '+selRoll.rollId+' done?'))return;
+  selRoll.done=true;await gPut('inventory',selRoll);
+  lastRollId=null;selRoll=null;
+  $('step2').style.display='none';$('step1').style.display='block';
+  renderRolls();renderInv();toast('Roll done ✓');
+});
+
+$('btnFlag').addEventListener('click',function(){$('flagModal').classList.add('open');$('flagNote').value=''});
+function setFlagType(t){$('flagNote').value=t+': ';$('flagNote').focus()}
+function closeFlagModal(){$('flagModal').classList.remove('open')}
+function confirmFlag(){var n=$('flagNote').value.trim()||'Issue flagged';closeFlagModal();doPlace(n)}
+
+$('btnPhoto').addEventListener('click',function(){$('photoInput').click()});
+$('photoInput').addEventListener('change',async function(e){
+  var f=e.target.files[0];if(!f)return;
+  var rd=new FileReader();
+  rd.onload=async function(ev){
+    var last=placements[placements.length-1];
+    if(last){last.photoDataUrl=ev.target.result;await gPut('placements',last);await gPut('photos',{panelId:last.panelId,data:ev.target.result})}
+    toast('Photo saved ✓');
+  };rd.readAsDataURL(f);e.target.value='';
+});
+
+function renderLog(){
+  var el=$('logList');
+  if(!placements.length){el.innerHTML='<div class="empty">No placements yet</div>';return}
+  el.innerHTML=placements.slice().reverse().map(function(p){
+    return '<div class="log-entry '+(p.flag?'flagged':'')+'">'+
+      '<div class="log-header"><span class="log-panel">'+esc(p.panelId)+'</span>'+
+      '<button class="del-btn" data-p="'+esc(p.panelId)+'">✕</button></div>'+
+      '<div class="log-roll">'+esc(p.rollId)+' — '+p.weight+' lbs</div>'+
+      '<div class="log-meta">'+esc(p.dateDisplay)+' '+esc(p.timeDisplay)+'<br>GPS: '+(p.lat?p.lat.toFixed(6)+', '+p.lng.toFixed(6):'N/A')+(p.photoDataUrl?' — 📷':'')+'</div>'+
+      (p.flag?'<div class="log-flag">⚠ '+esc(p.flag)+'</div>':'')+
+      '</div>';
+  }).join('');
+  el.querySelectorAll('.del-btn').forEach(function(b){b.addEventListener('click',async function(){
+    var pp=b.dataset.p;if(!confirm('Delete '+pp+'?'))return;
+    placements=placements.filter(function(x){return x.panelId!==pp});
+    var all=await gAll('placements'),m=all.find(function(d){return d.panelId===pp});
+    if(m)await gDel('placements',m.id);
+    updBadge();renderLog();renderRolls();renderInv();toast(pp+' deleted');
+  })});
+}
+
+function renderInv(){
+  var el=$('invList');
+  el.innerHTML=inventory.map(function(r){
+    var c=rollCount(r.rollId);
+    return '<div class="roll-item '+(r.done?'done':'')+'">'+
+      '<div><div class="roll-id">'+r.rollId+'</div>'+
+      '<div class="roll-sub">'+r.weight+' lbs — '+r.material+(c?' — '+c+' panel'+(c>1?'s':''):'')+'</div></div>'+
+      '<button class="done-toggle '+(r.done?'is-done':'')+'" data-r="'+r.rollId+'">'+(r.done?'✓ Done':'Mark Done')+'</button></div>';
+  }).join('');
+  el.querySelectorAll('.done-toggle').forEach(function(b){b.addEventListener('click',async function(e){
+    e.stopPropagation();var r=inventory.find(function(x){return x.rollId===b.dataset.r});if(!r)return;
+    r.done=!r.done;await gPut('inventory',r);renderInv();renderRolls();
+    toast(r.rollId+(r.done?' done':' reopened'));
+  })});
+}
+$('btnEditInv').addEventListener('click',function(){
+  $('invEditor').value=inventory.map(function(r){return r.rollId+', '+r.weight}).join('\n');
+  $('editInvModal').classList.add('open');
+});
+function closeEditInv(){$('editInvModal').classList.remove('open')}
+async function saveEditInv(){
+  var lines=$('invEditor').value.trim().split('\n').filter(function(l){return l.trim()});
+  var doneSet=new Set(inventory.filter(function(r){return r.done}).map(function(r){return r.rollId}));
+  await gClr('inventory');inventory=[];
+  for(var li=0;li<lines.length;li++){var p=lines[li].split(',').map(function(s){return s.trim()});
+    var r={rollId:p[0]||'',weight:parseInt(p[1])||0,material:'60 mil HDPE Textured',done:doneSet.has(p[0])};
+    inventory.push(r);await gPut('inventory',r)}
+  closeEditInv();renderInv();renderRolls();toast('Inventory saved ✓');
+}
+
+$('btnExport').addEventListener('click',function(){
+  if(!placements.length){toast('No data');return}
+  var h=['Panel ID','Roll ID','Weight (lbs)','Material','Latitude','Longitude','GPS Acc (m)','Date','Time','Flag'];
+  var bom=new Uint8Array([0xEF,0xBB,0xBF]);
+  var csv=h.join(',')+'\n';
+  placements.forEach(function(p){csv+=[p.panelId,p.rollId,p.weight,p.material,p.lat||'',p.lng||'',p.gpsAcc?Math.round(p.gpsAcc):'',p.dateDisplay,p.timeDisplay,p.flag||''].map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(',')+'\n'});
+  dl(new Blob([bom,csv],{type:'text/csv;charset=utf-8'}),'FieldMap_'+ds()+'.csv');toast('CSV ✓');
+});
+$('btnExportXLS').addEventListener('click',function(){
+  if(!placements.length){toast('No data');return}
+  var h=['Panel ID','Roll ID','Weight (lbs)','Material','Latitude','Longitude','GPS Acc (m)','Date','Time','Flag'];
+  var t='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body><table border="1">';
+  t+='<tr>'+h.map(function(x){return '<th style="font-weight:bold;background:#dbeafe">'+x+'</th>'}).join('')+'</tr>';
+  placements.forEach(function(p){var v=[p.panelId,p.rollId,p.weight,p.material,p.lat||'',p.lng||'',p.gpsAcc?Math.round(p.gpsAcc):'',p.dateDisplay,p.timeDisplay,p.flag||''];
+    t+='<tr>'+v.map(function(x){return '<td>'+esc(String(x))+'</td>'}).join('')+'</tr>'});
+  t+='</table></body></html>';
+  dl(new Blob([t],{type:'application/vnd.ms-excel'}),'FieldMap_'+ds()+'.xls');toast('XLS ✓');
+});
+
+function dl(b,f){var u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=f;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u)}
+function ds(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function toast(m){var el=$('toast');el.textContent=m;el.classList.add('show');setTimeout(function(){el.classList.remove('show')},2000)}
+function updBadge(){$('countBadge').textContent=placements.length+' Panel'+(placements.length!==1?'s':'')}
+
+async function init(){
+  await openDB();
+  inventory=await gAll('inventory');
+  if(!inventory.length){for(var ri=0;ri<DROLLS.length;ri++)await gPut('inventory',DROLLS[ri]);inventory=DROLLS.slice()}
+  placements=await gAll('placements');
+  var st=await gGet('settings','ps');
+  if(st){P.pre=st.pre||'B';P.num=st.num||1;P.sub=st.sub||'';lastRollId=st.lastRoll||null}
+  if(placements.length){
+    var maxN=0;placements.forEach(function(p){if((p.prefix||'B')===P.pre&&(p.num||0)>maxN)maxN=p.num||0});
+    if(maxN>=P.num){P.num=maxN+1;P.sub=''}
+  }
+  renderRolls();renderInv();renderLog();updBadge();initGPS();
+}
+init();
+</script>
+</body>
+</html>
